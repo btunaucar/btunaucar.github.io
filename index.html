@@ -1,0 +1,667 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Proximity Warning System on STM32 — Baran Tuna Uçar</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/c.min.js"></script>
+
+<style>
+  :root {
+    --bg:        #F8F9FA;
+    --surface:   #FFFFFF;
+    --border:    #E2E8F0;
+    --ink:       #1A1A2E;
+    --ink-soft:  #4A5568;
+    --accent:    #2D6A9F;
+    --accent-lt: #EBF4FF;
+    --signal:    #E8A020;
+    --signal-lt: #FEF3DC;
+    --safe:      #2E7D50;
+    --warn:      #D97706;
+    --danger:    #C0392B;
+    --code-bg:   #282C34;
+    --radius:    8px;
+    --mono:      'JetBrains Mono', monospace;
+    --sans:      'Inter', system-ui, sans-serif;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 16px;
+    line-height: 1.7;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ── NAV ── */
+  nav {
+    position: sticky; top: 0; z-index: 100;
+    background: rgba(248,249,250,0.92);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 32px; height: 56px;
+  }
+  .nav-brand {
+    font-family: var(--mono); font-size: 13px; font-weight: 600;
+    color: var(--accent); letter-spacing: 0.02em; text-decoration: none;
+  }
+  .nav-links { display: flex; gap: 28px; list-style: none; }
+  .nav-links a {
+    font-size: 13px; font-weight: 500; color: var(--ink-soft);
+    text-decoration: none; letter-spacing: 0.01em;
+    transition: color 0.15s;
+  }
+  .nav-links a:hover { color: var(--accent); }
+
+  /* ── HERO ── */
+  .hero {
+    max-width: 900px; margin: 0 auto;
+    padding: 72px 32px 56px;
+  }
+  .hero-eyebrow {
+    font-family: var(--mono); font-size: 12px; font-weight: 600;
+    color: var(--accent); letter-spacing: 0.12em; text-transform: uppercase;
+    margin-bottom: 16px;
+  }
+  .hero h1 {
+    font-size: clamp(28px, 4vw, 42px); font-weight: 600;
+    line-height: 1.2; letter-spacing: -0.02em;
+    margin-bottom: 20px;
+  }
+  .hero h1 span { color: var(--accent); }
+  .hero-desc {
+    font-size: 17px; color: var(--ink-soft); max-width: 620px;
+    margin-bottom: 32px; line-height: 1.75;
+  }
+  .tag-row { display: flex; flex-wrap: wrap; gap: 8px; }
+  .tag {
+    font-family: var(--mono); font-size: 11px; font-weight: 600;
+    padding: 4px 10px; border-radius: 4px;
+    background: var(--accent-lt); color: var(--accent);
+    letter-spacing: 0.04em;
+  }
+  .tag.signal { background: var(--signal-lt); color: #92570A; }
+
+  /* ── SECTION LAYOUT ── */
+  .section {
+    max-width: 900px; margin: 0 auto;
+    padding: 56px 32px;
+    border-top: 1px solid var(--border);
+  }
+  .section-label {
+    font-family: var(--mono); font-size: 11px; font-weight: 600;
+    color: var(--accent); letter-spacing: 0.12em; text-transform: uppercase;
+    margin-bottom: 12px;
+  }
+  .section h2 {
+    font-size: 22px; font-weight: 600; letter-spacing: -0.01em;
+    margin-bottom: 20px;
+  }
+  p { color: var(--ink-soft); margin-bottom: 14px; }
+  p:last-child { margin-bottom: 0; }
+
+  /* ── SPECS GRID ── */
+  .specs-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 1px; background: var(--border);
+    border: 1px solid var(--border); border-radius: var(--radius);
+    overflow: hidden; margin-top: 28px;
+  }
+  .spec-cell {
+    background: var(--surface);
+    padding: 20px 22px;
+  }
+  .spec-cell .label {
+    font-family: var(--mono); font-size: 10px; font-weight: 600;
+    color: var(--ink-soft); letter-spacing: 0.1em; text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+  .spec-cell .value {
+    font-size: 15px; font-weight: 600; color: var(--ink);
+  }
+
+  /* ── BLOCK DIAGRAM ── */
+  .diagram-wrap {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 40px 24px;
+    margin-top: 28px;
+    overflow-x: auto;
+  }
+
+  /* ── ZONES TABLE ── */
+  .zones {
+    display: grid; grid-template-columns: 1fr 1fr 1fr;
+    gap: 12px; margin-top: 28px;
+  }
+  .zone-card {
+    border-radius: var(--radius);
+    padding: 20px;
+    border: 1px solid;
+  }
+  .zone-card.safe   { background: #F0FBF4; border-color: #A7D7B8; }
+  .zone-card.warn   { background: #FFFBEB; border-color: #FCD96A; }
+  .zone-card.danger { background: #FEF2F2; border-color: #FCA5A5; }
+  .zone-card .zone-label {
+    font-family: var(--mono); font-size: 10px; font-weight: 700;
+    letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 6px;
+  }
+  .zone-card.safe   .zone-label { color: var(--safe); }
+  .zone-card.warn   .zone-label { color: var(--warn); }
+  .zone-card.danger .zone-label { color: var(--danger); }
+  .zone-card .zone-range {
+    font-size: 20px; font-weight: 600; margin-bottom: 8px; color: var(--ink);
+  }
+  .zone-card p { font-size: 13px; line-height: 1.5; margin-bottom: 0; }
+
+  /* ── CODE VIEWER ── */
+  .code-wrap {
+    border-radius: var(--radius);
+    overflow: hidden;
+    border: 1px solid var(--border);
+    margin-top: 28px;
+  }
+  .code-header {
+    background: #21252B;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 18px;
+  }
+  .code-header .filename {
+    font-family: var(--mono); font-size: 12px; color: #ABB2BF;
+  }
+  .code-header .dots { display: flex; gap: 6px; }
+  .code-header .dots span {
+    width: 11px; height: 11px; border-radius: 50%;
+  }
+  .code-header .dots span:nth-child(1) { background: #E06C75; }
+  .code-header .dots span:nth-child(2) { background: #E5C07B; }
+  .code-header .dots span:nth-child(3) { background: #98C379; }
+  .code-wrap pre {
+    margin: 0 !important;
+    border-radius: 0 !important;
+    max-height: 520px;
+    overflow-y: auto;
+    font-size: 13px !important;
+    line-height: 1.6 !important;
+  }
+  .code-wrap pre::-webkit-scrollbar { width: 6px; }
+  .code-wrap pre::-webkit-scrollbar-track { background: #21252B; }
+  .code-wrap pre::-webkit-scrollbar-thumb { background: #4B5263; border-radius: 3px; }
+
+  /* ── SUBSYSTEM CARDS ── */
+  .subsystem-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 16px; margin-top: 28px;
+  }
+  .sub-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 22px;
+    transition: border-color 0.15s;
+  }
+  .sub-card:hover { border-color: var(--accent); }
+  .sub-card .sub-icon {
+    font-size: 22px; margin-bottom: 12px;
+  }
+  .sub-card h3 {
+    font-size: 14px; font-weight: 600; margin-bottom: 8px;
+  }
+  .sub-card p { font-size: 13px; line-height: 1.55; margin-bottom: 0; }
+  .sub-card .mono-detail {
+    font-family: var(--mono); font-size: 11px;
+    color: var(--accent); margin-top: 10px;
+  }
+
+  /* ── FOOTER ── */
+  footer {
+    border-top: 1px solid var(--border);
+    text-align: center;
+    padding: 32px;
+    font-family: var(--mono);
+    font-size: 12px; color: var(--ink-soft);
+  }
+  footer a { color: var(--accent); text-decoration: none; }
+
+  @media (max-width: 600px) {
+    nav { padding: 0 16px; }
+    .hero, .section { padding-left: 16px; padding-right: 16px; }
+    .zones { grid-template-columns: 1fr; }
+    .nav-links { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <a class="nav-brand" href="#">btunaucar / proximity-stm32</a>
+  <ul class="nav-links">
+    <li><a href="#overview">Overview</a></li>
+    <li><a href="#architecture">Architecture</a></li>
+    <li><a href="#subsystems">Subsystems</a></li>
+    <li><a href="#code">Source</a></li>
+  </ul>
+</nav>
+
+<!-- HERO -->
+<header class="hero">
+  <div class="hero-eyebrow">STM32F103C8T6 — Bare-Metal C</div>
+  <h1>Bare-Metal<br><span>Proximity Warning System</span></h1>
+  <p class="hero-desc">
+    A real-time distance-sensing and alerting system built from scratch on the STM32F103
+    (Blue Pill), with no HAL or middleware. Ultrasonic ranging, analog output, PWM buzzer,
+    4-bit LCD, and three-zone LED indication — all driven by direct register manipulation.
+  </p>
+  <div class="tag-row">
+    <span class="tag">STM32F103C8T6</span>
+    <span class="tag">Bare-Metal C</span>
+    <span class="tag">Keil MDK</span>
+    <span class="tag signal">HC-SR04</span>
+    <span class="tag signal">DAC0808</span>
+    <span class="tag signal">HD44780 LCD</span>
+  </div>
+</header>
+
+<!-- OVERVIEW -->
+<section class="section" id="overview">
+  <div class="section-label">Project Overview</div>
+  <h2>How It Works</h2>
+  <p>
+    Every 50 ms, a TIM4 interrupt sets a <code>g_sample_ready</code> flag. The main loop
+    fires a 10 µs ultrasonic trigger pulse, then reads the echo width captured by an
+    EXTI1 edge-detection state machine. Distance is computed from pulse duration
+    (÷58 for cm), and the system maps it to three output domains simultaneously.
+  </p>
+  <p>
+    A potentiometer on ADC1_IN2 lets the user tune buzzer duty cycle at runtime
+    (10–90%). The DAC0808 receives an 8-bit value linearly scaled to 0–200 cm,
+    providing an analog voltage proportional to proximity. The LCD refreshes each
+    cycle showing distance, sample period, DAC value, and duty percentage.
+  </p>
+
+  <div class="specs-grid">
+    <div class="spec-cell"><div class="label">MCU Clock</div><div class="value">72 MHz</div></div>
+    <div class="spec-cell"><div class="label">Sample Rate</div><div class="value">20 Hz (50 ms)</div></div>
+    <div class="spec-cell"><div class="label">Timebase</div><div class="value">TIM2 @ 1 MHz</div></div>
+    <div class="spec-cell"><div class="label">Buzzer PWM</div><div class="value">TIM1 CH1, PA8</div></div>
+    <div class="spec-cell"><div class="label">ADC Resolution</div><div class="value">12-bit (4095 max)</div></div>
+    <div class="spec-cell"><div class="label">DAC Range</div><div class="value">0–200 cm → 8-bit</div></div>
+    <div class="spec-cell"><div class="label">Max Range</div><div class="value">400 cm</div></div>
+    <div class="spec-cell"><div class="label">LCD Interface</div><div class="value">4-bit, split port</div></div>
+  </div>
+
+  <div style="margin-top:36px">
+    <div class="section-label" style="margin-bottom:16px">Distance Zones</div>
+    <div class="zones">
+      <div class="zone-card safe">
+        <div class="zone-label">● Safe</div>
+        <div class="zone-range">&gt; 50 cm</div>
+        <p>Green LED on. Buzzer silent. System at rest.</p>
+      </div>
+      <div class="zone-card warn">
+        <div class="zone-label">● Warning</div>
+        <div class="zone-range">20 – 50 cm</div>
+        <p>Yellow LED. Intermittent beep toggled by TIM4 every 5 ticks (250 ms half-period).</p>
+      </div>
+      <div class="zone-card danger">
+        <div class="zone-label">● Danger</div>
+        <div class="zone-range">&lt; 20 cm</div>
+        <p>Red LED. Continuous buzzer at pot-set duty cycle.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ARCHITECTURE / BLOCK DIAGRAM -->
+<section class="section" id="architecture">
+  <div class="section-label">System Architecture</div>
+  <h2>Block Diagram</h2>
+  <p>
+    All peripherals hang off the STM32F103. TIM2 provides the global microsecond
+    timebase; TIM4 drives the 20 Hz sampling cadence; EXTI1 captures the echo edges;
+    TIM1 generates the buzzer PWM; ADC1 reads the pot; and GPIOB bit-bangs the
+    DAC0808's 8-bit parallel bus.
+  </p>
+
+  <div class="diagram-wrap">
+    <svg viewBox="0 0 820 400" xmlns="http://www.w3.org/2000/svg" width="100%" style="min-width:600px; font-family:'JetBrains Mono',monospace;">
+      <defs>
+        <marker id="arr" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+          <polygon points="0 0, 8 3, 0 6" fill="#2D6A9F"/>
+        </marker>
+        <marker id="arr-gray" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+          <polygon points="0 0, 8 3, 0 6" fill="#94A3B8"/>
+        </marker>
+      </defs>
+
+      <!-- MCU core box -->
+      <rect x="280" y="120" width="260" height="160" rx="8"
+            fill="#EBF4FF" stroke="#2D6A9F" stroke-width="2"/>
+      <text x="410" y="148" text-anchor="middle" font-size="13" font-weight="700" fill="#1A1A2E">STM32F103C8T6</text>
+      <text x="410" y="163" text-anchor="middle" font-size="10" fill="#4A5568">Blue Pill — 72 MHz Cortex-M3</text>
+      <!-- internal labels -->
+      <text x="300" y="188" font-size="10" fill="#2D6A9F">TIM2  ·  1 MHz timebase</text>
+      <text x="300" y="204" font-size="10" fill="#2D6A9F">TIM4  ·  20 Hz sample tick</text>
+      <text x="300" y="220" font-size="10" fill="#2D6A9F">TIM1  ·  PWM buzzer (PA8)</text>
+      <text x="300" y="236" font-size="10" fill="#2D6A9F">EXTI1 ·  echo capture (PA1)</text>
+      <text x="300" y="252" font-size="10" fill="#2D6A9F">ADC1  ·  pot read (PA2)</text>
+      <text x="300" y="268" font-size="10" fill="#2D6A9F">GPIO  ·  LCD / LEDs / DAC bus</text>
+
+      <!-- INPUT SIDE ── Left column -->
+      <!-- HC-SR04 -->
+      <rect x="40" y="108" width="150" height="56" rx="6" fill="#F8F9FA" stroke="#CBD5E1" stroke-width="1.5"/>
+      <text x="115" y="130" text-anchor="middle" font-size="11" font-weight="600" fill="#1A1A2E">HC-SR04</text>
+      <text x="115" y="145" text-anchor="middle" font-size="10" fill="#64748B">Ultrasonic Sensor</text>
+      <text x="115" y="158" text-anchor="middle" font-size="10" fill="#94A3B8">TRIG PA0 / ECHO PA1</text>
+      <!-- arrow → MCU -->
+      <line x1="192" y1="136" x2="278" y2="180" stroke="#2D6A9F" stroke-width="1.5" marker-end="url(#arr)"/>
+
+      <!-- Potentiometer -->
+      <rect x="40" y="186" width="150" height="44" rx="6" fill="#F8F9FA" stroke="#CBD5E1" stroke-width="1.5"/>
+      <text x="115" y="207" text-anchor="middle" font-size="11" font-weight="600" fill="#1A1A2E">Potentiometer</text>
+      <text x="115" y="222" text-anchor="middle" font-size="10" fill="#94A3B8">ADC1_IN2 — PA2</text>
+      <!-- arrow → MCU -->
+      <line x1="192" y1="208" x2="278" y2="208" stroke="#2D6A9F" stroke-width="1.5" marker-end="url(#arr)"/>
+
+      <!-- OUTPUT SIDE ── Right column -->
+      <!-- LED cluster -->
+      <rect x="630" y="60" width="150" height="64" rx="6" fill="#F8F9FA" stroke="#CBD5E1" stroke-width="1.5"/>
+      <text x="705" y="82" text-anchor="middle" font-size="11" font-weight="600" fill="#1A1A2E">LEDs × 3</text>
+      <text x="705" y="97" text-anchor="middle" font-size="10" fill="#94A3B8">PB5 / PB6 / PB7</text>
+      <circle cx="680" cy="112" r="6" fill="#2E7D50" opacity="0.85"/>
+      <circle cx="705" cy="112" r="6" fill="#D97706" opacity="0.85"/>
+      <circle cx="730" cy="112" r="6" fill="#C0392B" opacity="0.85"/>
+      <!-- MCU → LED -->
+      <line x1="542" y1="168" x2="628" y2="92" stroke="#2D6A9F" stroke-width="1.5" marker-end="url(#arr)"/>
+
+      <!-- Buzzer -->
+      <rect x="630" y="148" width="150" height="44" rx="6" fill="#F8F9FA" stroke="#CBD5E1" stroke-width="1.5"/>
+      <text x="705" y="169" text-anchor="middle" font-size="11" font-weight="600" fill="#1A1A2E">Buzzer</text>
+      <text x="705" y="184" text-anchor="middle" font-size="10" fill="#94A3B8">TIM1_CH1 — PA8</text>
+      <!-- MCU → Buzzer -->
+      <line x1="542" y1="200" x2="628" y2="170" stroke="#2D6A9F" stroke-width="1.5" marker-end="url(#arr)"/>
+
+      <!-- DAC0808 -->
+      <rect x="630" y="216" width="150" height="56" rx="6" fill="#FEF3DC" stroke="#E8A020" stroke-width="1.5"/>
+      <text x="705" y="238" text-anchor="middle" font-size="11" font-weight="600" fill="#1A1A2E">DAC0808</text>
+      <text x="705" y="253" text-anchor="middle" font-size="10" fill="#64748B">8-bit parallel output</text>
+      <text x="705" y="266" text-anchor="middle" font-size="10" fill="#94A3B8">GPIOB parallel bus</text>
+      <!-- MCU → DAC -->
+      <line x1="542" y1="232" x2="628" y2="244" stroke="#E8A020" stroke-width="1.5" marker-end="url(#arr)"/>
+
+      <!-- HD44780 LCD -->
+      <rect x="630" y="296" width="150" height="56" rx="6" fill="#F8F9FA" stroke="#CBD5E1" stroke-width="1.5"/>
+      <text x="705" y="318" text-anchor="middle" font-size="11" font-weight="600" fill="#1A1A2E">HD44780 LCD</text>
+      <text x="705" y="333" text-anchor="middle" font-size="10" fill="#64748B">4-bit, 2×16</text>
+      <text x="705" y="346" text-anchor="middle" font-size="10" fill="#94A3B8">PA4–7 / PB8–9</text>
+      <!-- MCU → LCD -->
+      <line x1="542" y1="260" x2="628" y2="324" stroke="#2D6A9F" stroke-width="1.5" marker-end="url(#arr)"/>
+
+      <!-- sample tick label -->
+      <text x="410" y="360" text-anchor="middle" font-size="10" fill="#94A3B8">50 ms sample period  ·  zero HAL  ·  bare register access</text>
+    </svg>
+  </div>
+</section>
+
+<!-- SUBSYSTEMS -->
+<section class="section" id="subsystems">
+  <div class="section-label">Implementation Notes</div>
+  <h2>Key Subsystems</h2>
+  <p>
+    Each peripheral is initialised and serviced by a focused module. There are no blocking
+    delays in interrupt context — the main loop polls <code>g_sample_ready</code>, keeping
+    ISRs minimal.
+  </p>
+  <div class="subsystem-grid">
+    <div class="sub-card">
+      <div class="sub-icon">⏱</div>
+      <h3>Microsecond Timebase (TIM2)</h3>
+      <p>TIM2 runs at 1 MHz (PSC=71, ARR=0xFFFF). An overflow ISR increments
+        <code>g_tim2_ovf</code>. <code>micros()</code> reconstructs a 32-bit timestamp
+        with a double-read loop to guard against overflow races.</p>
+      <div class="mono-detail">PSC=71 · ARR=0xFFFF · IRQ: TIM2</div>
+    </div>
+    <div class="sub-card">
+      <div class="sub-icon">📡</div>
+      <h3>Echo Capture (EXTI1)</h3>
+      <p>Both edges of the echo pulse are captured by a three-state machine:
+        idle → rose → complete. Rise and fall timestamps from <code>micros()</code>
+        give pulse width; results outside 100–40 000 µs are discarded.</p>
+      <div class="mono-detail">RTSR + FTSR · PA1 · state in g_echo_state</div>
+    </div>
+    <div class="sub-card">
+      <div class="sub-icon">🎛</div>
+      <h3>Sample Tick (TIM4)</h3>
+      <p>TIM4 fires at 20 Hz (PSC=7199, ARR=499). The ISR sets
+        <code>g_sample_ready</code> and advances a beep-toggle counter
+        so the warning zone buzzer alternates every 5 ticks (250 ms).</p>
+      <div class="mono-detail">PSC=7199 · ARR=499 · 20 Hz</div>
+    </div>
+    <div class="sub-card">
+      <div class="sub-icon">🔊</div>
+      <h3>PWM Buzzer (TIM1)</h3>
+      <p>TIM1 CH1 on PA8 (AF push-pull). ARR=999 gives a 2 kHz carrier at 36 MHz
+        effective clock. CCR1 is written as a percentage of ARR+1, and the BDTR
+        MOE bit enables the complementary output stage.</p>
+      <div class="mono-detail">TIM1 CH1 · PWM Mode 1 · BDTR MOE</div>
+    </div>
+    <div class="sub-card">
+      <div class="sub-icon">📊</div>
+      <h3>DAC0808 Output</h3>
+      <p>Eight GPIOB pins (non-contiguous) are mapped through <code>DAC_PIN_MAP[8]</code>.
+        A single BSRR write simultaneously clears all 8 bits and sets the new value,
+        making the update glitch-free and atomic.</p>
+      <div class="mono-detail">BSRR atomic write · DAC_PIN_MASK=0x7C0B</div>
+    </div>
+    <div class="sub-card">
+      <div class="sub-icon">🖥</div>
+      <h3>HD44780 LCD (4-bit, split port)</h3>
+      <p>D4–D5 live on GPIOA and D6–D7 on GPIOB, handled by nibble writes with
+        BSRR mask-clear + set. The buzzer CCR1 is zeroed during LCD refresh to
+        prevent interference from GPIO switching noise.</p>
+      <div class="mono-detail">PA4–7 / PB8–9 · 4-bit mode · split port</div>
+    </div>
+  </div>
+</section>
+
+<!-- SOURCE CODE -->
+<section class="section" id="code">
+  <div class="section-label">Source Code</div>
+  <h2>main.c</h2>
+  <p>
+    Complete bare-metal implementation. All register addresses accessed directly via
+    CMSIS structs. No HAL, no LL drivers — every peripheral configured from scratch.
+  </p>
+  <div class="code-wrap">
+    <div class="code-header">
+      <div class="dots">
+        <span></span><span></span><span></span>
+      </div>
+      <span class="filename">main.c — STM32F103C8T6</span>
+    </div>
+    <pre><code class="language-c">#include "stm32f10x.h"
+#include &lt;stdint.h&gt;
+
+/* ============================================================
+ *  PIN &amp; CONSTANT DEFINITIONS
+ * ============================================================ */
+
+/* GPIOA pins */
+#define PIN_TRIG           0       /* PA0 - HC-SR04 TRIG */
+#define PIN_ECHO           1       /* PA1 - HC-SR04 ECHO */
+#define PIN_POT_CH         2       /* PA2 - ADC1_IN2 */
+#define PIN_LCD_RS         4       /* PA4 */
+#define PIN_LCD_EN         5       /* PA5 */
+#define PIN_LCD_D4         6       /* PA6 */
+#define PIN_LCD_D5         7       /* PA7 */
+
+/* GPIOB pins */
+#define PIN_LED_SAFE       5       /* PB5 */
+#define PIN_LED_WARN       6       /* PB6 */
+#define PIN_LED_DANGER     7       /* PB7 */
+#define PIN_LCD_D6         8       /* PB8 */
+#define PIN_LCD_D7         9       /* PB9 */
+
+static const uint8_t DAC_PIN_MAP[8] = { 0, 1, 3, 10, 11, 12, 13, 14 };
+#define DAC_PIN_MASK       0x7C0B
+
+#define SAMPLE_PERIOD_MS   50
+#define DIST_SAFE_CM       50
+#define DIST_DANGER_CM     20
+#define DIST_DAC_MAX_CM    200
+#define DIST_MAX_CM        400
+
+#define BUZZER_DUTY_MIN    10
+#define BUZZER_DUTY_MAX    90
+#define BEEP_HALF_TICKS    5
+
+/* ============================================================
+ *  GLOBAL STATE
+ * ============================================================ */
+
+volatile uint32_t g_tim2_ovf      = 0;
+volatile uint8_t  g_sample_ready  = 0;
+volatile uint32_t g_echo_rise_us  = 0;
+volatile uint32_t g_echo_fall_us  = 0;
+volatile uint8_t  g_echo_state    = 0;
+volatile uint8_t  g_beep_tick     = 0;
+volatile uint8_t  g_beep_on       = 0;
+
+/* ============================================================
+ *  TIMEBASE (TIM2 @ 1 MHz)
+ * ============================================================ */
+
+uint32_t micros(void)
+{
+    uint32_t ovf_a, ovf_b;
+    uint16_t cnt;
+    do {
+        ovf_a = g_tim2_ovf;
+        cnt   = TIM2-&gt;CNT;
+        ovf_b = g_tim2_ovf;
+    } while (ovf_a != ovf_b);
+    return ovf_a * 65536UL + cnt;
+}
+
+void wait_us(uint16_t us)
+{
+    uint32_t start = micros();
+    while ((micros() - start) &lt; us) { ; }
+}
+
+void wait_ms(uint16_t ms)
+{
+    while (ms--) { wait_us(1000); }
+}
+
+void timer2_microsecond_init(void)
+{
+    RCC-&gt;APB1ENR |= (1 &lt;&lt; 0);
+    TIM2-&gt;PSC  = 72 - 1;
+    TIM2-&gt;ARR  = 0xFFFF;
+    TIM2-&gt;CNT  = 0;
+    TIM2-&gt;SR   = 0;
+    TIM2-&gt;DIER = (1 &lt;&lt; 0);
+    TIM2-&gt;CR1  = (1 &lt;&lt; 0);
+    NVIC_EnableIRQ(TIM2_IRQn);
+}
+
+void TIM2_IRQHandler(void)
+{
+    if (TIM2-&gt;SR &amp; 1) {
+        TIM2-&gt;SR &amp;= ~1;
+        g_tim2_ovf++;
+    }
+}
+
+/* ============================================================
+ *  ECHO CAPTURE (EXTI1)
+ * ============================================================ */
+
+void EXTI1_IRQHandler(void)
+{
+    if (!(EXTI-&gt;PR &amp; (1 &lt;&lt; 1))) return;
+    EXTI-&gt;PR = (1 &lt;&lt; 1);
+    if (GPIOA-&gt;IDR &amp; (1 &lt;&lt; PIN_ECHO)) {
+        g_echo_rise_us = micros();
+        g_echo_state   = 1;
+    } else if (g_echo_state == 1) {
+        g_echo_fall_us = micros();
+        g_echo_state   = 2;
+    }
+}
+
+/* ============================================================
+ *  MAIN LOOP
+ * ============================================================ */
+
+int main(void)
+{
+    gpio_init();
+    timer2_microsecond_init();
+    adc1_pot_init();
+    buzzer_init();
+    lcd_init();
+    echo_exti_init();
+    timer4_sampling_init();
+
+    while (1) {
+        uint32_t distance_cm;
+        uint8_t  dac_value, buzzer_pct;
+        uint16_t adc_raw;
+
+        if (!g_sample_ready) continue;
+        g_sample_ready = 0;
+
+        distance_cm = ultrasonic_read_cm();
+        adc_raw     = adc1_read_pot();
+        buzzer_pct  = BUZZER_DUTY_MIN
+                    + (uint8_t)(((BUZZER_DUTY_MAX - BUZZER_DUTY_MIN)
+                               * (uint32_t)adc_raw) / 4095UL);
+
+        {
+            uint32_t d = (distance_cm &gt; DIST_DAC_MAX_CM) ? DIST_DAC_MAX_CM : distance_cm;
+            dac_value  = (uint8_t)((255UL * d) / DIST_DAC_MAX_CM);
+            dac0808_write(dac_value);
+        }
+
+        apply_warning(distance_cm, buzzer_pct);
+        lcd_refresh(distance_cm, dac_value, buzzer_pct);
+        ultrasonic_trigger();
+    }
+}</code></pre>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <p>Baran Tuna Uçar &nbsp;·&nbsp; Bilkent University EEE &nbsp;·&nbsp;
+    <a href="https://github.com/btunaucar" target="_blank">github.com/btunaucar</a>
+  </p>
+  <p style="margin-top:6px; font-size:11px; color:#94A3B8">
+    Written in bare-metal C · No HAL · Keil MDK · STM32F103C8T6
+  </p>
+</footer>
+
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    hljs.highlightAll();
+  });
+</script>
+
+</body>
+</html>
