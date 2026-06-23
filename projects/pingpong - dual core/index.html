@@ -1,0 +1,643 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ZynqMP Dual-Core Ping-Pong — Baran Tuna Uçar</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/c.min.js"></script>
+
+<style>
+  :root {
+    --bg:        #F8F9FA;
+    --surface:   #FFFFFF;
+    --border:    #E2E8F0;
+    --ink:       #1A1A2E;
+    --ink-soft:  #4A5568;
+    --accent:    #1A7A4A;
+    --accent-lt: #EAFAF1;
+    --signal:    #2D6A9F;
+    --signal-lt: #EBF4FF;
+    --radius:    8px;
+    --mono:      'JetBrains Mono', monospace;
+    --sans:      'Inter', system-ui, sans-serif;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    background: var(--bg); color: var(--ink);
+    font-family: var(--sans); font-size: 16px;
+    line-height: 1.7; -webkit-font-smoothing: antialiased;
+  }
+
+  nav {
+    position: sticky; top: 0; z-index: 100;
+    background: rgba(248,249,250,0.92);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 32px; height: 56px;
+  }
+  .nav-brand {
+    font-family: var(--mono); font-size: 13px; font-weight: 600;
+    color: var(--accent); text-decoration: none;
+  }
+  .nav-links { display: flex; gap: 28px; list-style: none; }
+  .nav-links a {
+    font-size: 13px; font-weight: 500; color: var(--ink-soft);
+    text-decoration: none; transition: color 0.15s;
+  }
+  .nav-links a:hover { color: var(--accent); }
+
+  .hero {
+    max-width: 900px; margin: 0 auto;
+    padding: 72px 32px 56px;
+  }
+  .hero-eyebrow {
+    font-family: var(--mono); font-size: 12px; font-weight: 600;
+    color: var(--accent); letter-spacing: 0.12em; text-transform: uppercase;
+    margin-bottom: 16px;
+  }
+  .hero h1 {
+    font-size: clamp(28px, 4vw, 42px); font-weight: 600;
+    line-height: 1.2; letter-spacing: -0.02em; margin-bottom: 20px;
+  }
+  .hero h1 span { color: var(--accent); }
+  .hero-desc {
+    font-size: 17px; color: var(--ink-soft);
+    max-width: 620px; margin-bottom: 32px; line-height: 1.75;
+  }
+  .tag-row { display: flex; flex-wrap: wrap; gap: 8px; }
+  .tag {
+    font-family: var(--mono); font-size: 11px; font-weight: 600;
+    padding: 4px 10px; border-radius: 4px;
+    background: var(--accent-lt); color: var(--accent);
+  }
+  .tag.blue { background: var(--signal-lt); color: var(--signal); }
+  .tag.gray { background: #F1F5F9; color: #64748B; }
+
+  .section {
+    max-width: 900px; margin: 0 auto;
+    padding: 56px 32px;
+    border-top: 1px solid var(--border);
+  }
+  .section-label {
+    font-family: var(--mono); font-size: 11px; font-weight: 600;
+    color: var(--accent); letter-spacing: 0.12em; text-transform: uppercase;
+    margin-bottom: 12px;
+  }
+  .section h2 {
+    font-size: 22px; font-weight: 600; letter-spacing: -0.01em;
+    margin-bottom: 20px;
+  }
+  p { color: var(--ink-soft); margin-bottom: 14px; }
+  p:last-child { margin-bottom: 0; }
+  code {
+    font-family: var(--mono); font-size: 13px;
+    background: var(--accent-lt); color: var(--accent);
+    padding: 1px 6px; border-radius: 3px;
+  }
+
+  .specs-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 1px; background: var(--border);
+    border: 1px solid var(--border); border-radius: var(--radius);
+    overflow: hidden; margin-top: 28px;
+  }
+  .spec-cell { background: var(--surface); padding: 20px 22px; }
+  .spec-cell .label {
+    font-family: var(--mono); font-size: 10px; font-weight: 600;
+    color: var(--ink-soft); letter-spacing: 0.1em; text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+  .spec-cell .value { font-size: 15px; font-weight: 600; color: var(--ink); }
+
+  .diagram-wrap {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 40px 24px;
+    margin-top: 28px;
+    overflow-x: auto;
+  }
+
+  .demo-wrap {
+    margin-top: 28px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    background: #000;
+    display: flex; justify-content: center;
+  }
+  .demo-wrap img {
+    max-width: 320px; display: block;
+  }
+
+  .subsystem-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 16px; margin-top: 28px;
+  }
+  .sub-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 22px;
+    transition: border-color 0.15s;
+  }
+  .sub-card:hover { border-color: var(--accent); }
+  .sub-card .sub-icon { font-size: 22px; margin-bottom: 12px; }
+  .sub-card h3 { font-size: 14px; font-weight: 600; margin-bottom: 8px; }
+  .sub-card p { font-size: 13px; line-height: 1.55; margin-bottom: 0; }
+  .sub-card .mono-detail {
+    font-family: var(--mono); font-size: 11px;
+    color: var(--accent); margin-top: 10px;
+  }
+
+  .mem-table {
+    width: 100%; border-collapse: collapse;
+    margin-top: 28px; font-size: 14px;
+    background: var(--surface);
+    border-radius: var(--radius); overflow: hidden;
+    border: 1px solid var(--border);
+  }
+  .mem-table th {
+    font-family: var(--mono); font-size: 11px; font-weight: 600;
+    color: var(--ink-soft); letter-spacing: 0.08em; text-transform: uppercase;
+    text-align: left; padding: 10px 16px;
+    border-bottom: 2px solid var(--border);
+  }
+  .mem-table td {
+    padding: 11px 16px; border-bottom: 1px solid var(--border);
+    color: var(--ink-soft); font-size: 13px;
+  }
+  .mem-table tr:last-child td { border-bottom: none; }
+  .mem-table td:first-child {
+    font-family: var(--mono); font-size: 12px; font-weight: 600;
+    color: var(--accent);
+  }
+
+  .code-wrap {
+    border-radius: var(--radius); overflow: hidden;
+    border: 1px solid var(--border); margin-top: 28px;
+  }
+  .code-header {
+    background: #21252B;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 18px;
+  }
+  .code-header .filename { font-family: var(--mono); font-size: 12px; color: #ABB2BF; }
+  .code-header .dots { display: flex; gap: 6px; }
+  .code-header .dots span { width: 11px; height: 11px; border-radius: 50%; }
+  .code-header .dots span:nth-child(1) { background: #E06C75; }
+  .code-header .dots span:nth-child(2) { background: #E5C07B; }
+  .code-header .dots span:nth-child(3) { background: #98C379; }
+  .code-wrap pre {
+    margin: 0 !important; border-radius: 0 !important;
+    max-height: 520px; overflow-y: auto;
+    font-size: 13px !important; line-height: 1.6 !important;
+  }
+  .code-wrap pre::-webkit-scrollbar { width: 6px; }
+  .code-wrap pre::-webkit-scrollbar-track { background: #21252B; }
+  .code-wrap pre::-webkit-scrollbar-thumb { background: #4B5263; border-radius: 3px; }
+
+  .code-tabs-wrap { margin-top: 28px; }
+  .tab-bar {
+    display: flex; flex-wrap: wrap; gap: 2px;
+    background: #21252B;
+    border-radius: 8px 8px 0 0;
+    padding: 8px 8px 0;
+  }
+  .tab-btn {
+    font-family: var(--mono); font-size: 11px; font-weight: 600;
+    padding: 6px 12px; border: none; border-radius: 4px 4px 0 0;
+    background: transparent; color: #636D83; cursor: pointer;
+    transition: all 0.15s;
+  }
+  .tab-btn:hover { color: #ABB2BF; background: #2C313A; }
+  .tab-btn.active { background: #282C34; color: #98C379; }
+
+  .callout {
+    background: var(--accent-lt);
+    border-left: 3px solid var(--accent);
+    border-radius: 0 var(--radius) var(--radius) 0;
+    padding: 16px 20px;
+    margin-top: 20px;
+    font-size: 14px;
+    color: var(--ink-soft);
+  }
+  .callout strong { color: var(--ink); }
+
+  footer {
+    border-top: 1px solid var(--border);
+    text-align: center; padding: 32px;
+    font-family: var(--mono); font-size: 12px; color: var(--ink-soft);
+  }
+  footer a { color: var(--accent); text-decoration: none; }
+
+  @media (max-width: 600px) {
+    nav { padding: 0 16px; }
+    .hero, .section { padding-left: 16px; padding-right: 16px; }
+    .nav-links { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<nav>
+  <a class="nav-brand" href="../../index.html">← btunaucar</a>
+  <ul class="nav-links">
+    <li><a href="#overview">Overview</a></li>
+    <li><a href="#architecture">Architecture</a></li>
+    <li><a href="#subsystems">How It Works</a></li>
+    <li><a href="#code">Source</a></li>
+  </ul>
+</nav>
+
+<header class="hero">
+  <div class="hero-eyebrow">Bare-Metal · Zynq UltraScale+ MPSoC · Internship @ InfoDif</div>
+  <h1>ALINX AXU2CGB<br><span>Dual-Core Ping-Pong</span></h1>
+  <p class="hero-desc">
+    Two Cortex-A53 cores running simultaneously on the Zynq UltraScale+ MPSoC,
+    exchanging messages through shared DDR memory — no RTOS, no BSP, no HAL.
+    A foundation project for understanding multi-core PS programming and the
+    XSCT debug workflow on the ALINX AXU2CGB developer board.
+  </p>
+  <div class="tag-row">
+    <span class="tag">Zynq UltraScale+</span>
+    <span class="tag">Bare-Metal C</span>
+    <span class="tag">Dual-Core A53</span>
+    <span class="tag">Shared Memory</span>
+    <span class="tag gray">Vitis 2025</span>
+    <span class="tag gray">XSCT</span>
+    <span class="tag blue">PetaLinux 2020.1</span>
+  </div>
+</header>
+
+<!-- OVERVIEW -->
+<section class="section" id="overview">
+  <div class="section-label">Project Overview</div>
+  <h2>How It Works</h2>
+  <p>
+    The board boots PetaLinux from SD card, which initializes the DDR4 memory controller.
+    Once Linux is fully up, XSCT loads two bare-metal ELF files onto individual A53 cores
+    via JTAG — bypassing FSBL entirely. Core 0 writes "Ping!" to UART and sets a shared flag;
+    Core 1 waits on that flag, writes "Pong!", and clears it. The cycle repeats indefinitely.
+  </p>
+  <p>
+    A single <code>volatile unsigned int</code> at a fixed DDR address acts as a mutex-free
+    turn indicator between the two cores. The <code>volatile</code> keyword prevents the compiler
+    from caching the flag in a register — without it, each core would loop forever on a stale value.
+  </p>
+
+  <div class="demo-wrap">
+    <img src="../../demo.gif" alt="Ping-Pong UART output demo">
+  </div>
+
+  <div class="specs-grid">
+    <div class="spec-cell"><div class="label">Board</div><div class="value">ALINX AXU2CGB-I</div></div>
+    <div class="spec-cell"><div class="label">SoC</div><div class="value">ZU2CG (xczu2cg)</div></div>
+    <div class="spec-cell"><div class="label">Cores Used</div><div class="value">A53 #0 + A53 #1</div></div>
+    <div class="spec-cell"><div class="label">Core Clock</div><div class="value">1.2 GHz</div></div>
+    <div class="spec-cell"><div class="label">DDR4</div><div class="value">2 GB</div></div>
+    <div class="spec-cell"><div class="label">UART Baud</div><div class="value">115200</div></div>
+    <div class="spec-cell"><div class="label">JTAG</div><div class="value">Digilent JTAG-HS1</div></div>
+    <div class="spec-cell"><div class="label">Boot</div><div class="value">SD (PetaLinux)</div></div>
+  </div>
+
+  <div style="margin-top: 36px;">
+    <div class="section-label" style="margin-bottom: 16px;">Memory Map</div>
+    <table class="mem-table">
+      <thead>
+        <tr><th>Address</th><th>Region</th><th>Purpose</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>0x10000000</td><td>DDR (Core 0)</td><td>Core 0 ELF — code, data, stack</td></tr>
+        <tr><td>0x20000000</td><td>DDR (Core 1)</td><td>Core 1 ELF — code, data, stack</td></tr>
+        <tr><td>0x50000000</td><td>DDR (Shared)</td><td>Inter-core flag (volatile uint32)</td></tr>
+        <tr><td>0xFF00002C</td><td>UART0 Status</td><td>TX FIFO status register (bit 4 = full)</td></tr>
+        <tr><td>0xFF000030</td><td>UART0 TX</td><td>Transmit data register</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ARCHITECTURE -->
+<section class="section" id="architecture">
+  <div class="section-label">System Architecture</div>
+  <h2>Block Diagram</h2>
+  <p>
+    Linux boots on all four A53 cores normally. After boot, XSCT halts Core 0 and Core 1,
+    loads the respective ELF files, and releases both. The cores run bare-metal code
+    while Linux continues running on Core 2 and Core 3 — and has already initialized
+    DDR, making it available for bare-metal use.
+  </p>
+
+  <div class="diagram-wrap">
+    <svg viewBox="0 0 820 380" xmlns="http://www.w3.org/2000/svg" width="100%" style="min-width:580px; font-family:'JetBrains Mono',monospace;">
+      <defs>
+        <marker id="arr" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+          <polygon points="0 0,8 3,0 6" fill="#1A7A4A"/>
+        </marker>
+        <marker id="arr-blue" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+          <polygon points="0 0,8 3,0 6" fill="#2D6A9F"/>
+        </marker>
+      </defs>
+
+      <!-- SD Card -->
+      <rect x="30" y="60" width="120" height="44" rx="6" fill="#F8F9FA" stroke="#CBD5E1" stroke-width="1.5"/>
+      <text x="90" y="80" text-anchor="middle" font-size="11" font-weight="600" fill="#1A1A2E">SD Card</text>
+      <text x="90" y="95" text-anchor="middle" font-size="10" fill="#94A3B8">PetaLinux 2020.1</text>
+      <line x1="152" y1="82" x2="238" y2="130" stroke="#2D6A9F" stroke-width="1.5" marker-end="url(#arr-blue)"/>
+
+      <!-- XSCT -->
+      <rect x="30" y="200" width="120" height="56" rx="6" fill="#EBF4FF" stroke="#2D6A9F" stroke-width="1.5"/>
+      <text x="90" y="222" text-anchor="middle" font-size="11" font-weight="600" fill="#1A1A2E">XSCT</text>
+      <text x="90" y="237" text-anchor="middle" font-size="10" fill="#2D6A9F">JTAG-HS1</text>
+      <text x="90" y="250" text-anchor="middle" font-size="10" fill="#94A3B8">dow + con</text>
+      <line x1="152" y1="228" x2="238" y2="200" stroke="#2D6A9F" stroke-width="1.5" marker-end="url(#arr-blue)"/>
+
+      <!-- ZynqMP PS box -->
+      <rect x="240" y="80" width="340" height="220" rx="8" fill="#EAFAF1" stroke="#1A7A4A" stroke-width="2"/>
+      <text x="410" y="104" text-anchor="middle" font-size="13" font-weight="700" fill="#1A1A2E">Zynq UltraScale+ PS</text>
+      <text x="410" y="119" text-anchor="middle" font-size="10" fill="#4A5568">ZU2CG · xczu2cg-sfvc784-1-i</text>
+
+      <!-- Core 0 -->
+      <rect x="260" y="132" width="130" height="64" rx="6" fill="#FFFFFF" stroke="#1A7A4A" stroke-width="1.5"/>
+      <text x="325" y="153" text-anchor="middle" font-size="11" font-weight="700" fill="#1A7A4A">Cortex-A53 #0</text>
+      <text x="325" y="168" text-anchor="middle" font-size="10" fill="#4A5568">core0_ping.elf</text>
+      <text x="325" y="183" text-anchor="middle" font-size="10" fill="#94A3B8">0x10000000</text>
+
+      <!-- Core 1 -->
+      <rect x="420" y="132" width="130" height="64" rx="6" fill="#FFFFFF" stroke="#1A7A4A" stroke-width="1.5"/>
+      <text x="485" y="153" text-anchor="middle" font-size="11" font-weight="700" fill="#1A7A4A">Cortex-A53 #1</text>
+      <text x="485" y="168" text-anchor="middle" font-size="10" fill="#4A5568">core1_pong.elf</text>
+      <text x="485" y="183" text-anchor="middle" font-size="10" fill="#94A3B8">0x20000000</text>
+
+      <!-- Shared flag arrow -->
+      <line x1="390" y1="175" x2="420" y2="175" stroke="#1A7A4A" stroke-width="1.5" marker-end="url(#arr)"/>
+      <line x1="420" y1="185" x2="390" y2="185" stroke="#1A7A4A" stroke-width="1.5" marker-end="url(#arr)"/>
+      <text x="405" y="172" text-anchor="middle" font-size="9" fill="#1A7A4A">flag</text>
+      <text x="405" y="198" text-anchor="middle" font-size="9" fill="#94A3B8">0x50000000</text>
+
+      <!-- DDR -->
+      <rect x="270" y="225" width="280" height="44" rx="6" fill="#F0FBF4" stroke="#A7D7B8" stroke-width="1.5"/>
+      <text x="410" y="244" text-anchor="middle" font-size="11" font-weight="600" fill="#1A1A2E">DDR4 — 2 GB</text>
+      <text x="410" y="259" text-anchor="middle" font-size="10" fill="#94A3B8">Initialized by Linux at boot · Shared by all cores</text>
+      <line x1="325" y1="197" x2="325" y2="223" stroke="#1A7A4A" stroke-width="1.2" marker-end="url(#arr)"/>
+      <line x1="485" y1="197" x2="485" y2="223" stroke="#1A7A4A" stroke-width="1.2" marker-end="url(#arr)"/>
+
+      <!-- UART -->
+      <rect x="640" y="150" width="140" height="56" rx="6" fill="#F8F9FA" stroke="#CBD5E1" stroke-width="1.5"/>
+      <text x="710" y="172" text-anchor="middle" font-size="11" font-weight="600" fill="#1A1A2E">UART0</text>
+      <text x="710" y="187" text-anchor="middle" font-size="10" fill="#94A3B8">115200 baud</text>
+      <text x="710" y="200" text-anchor="middle" font-size="10" fill="#94A3B8">0xFF000030</text>
+      <line x1="582" y1="175" x2="638" y2="175" stroke="#1A7A4A" stroke-width="1.5" marker-end="url(#arr)"/>
+
+      <!-- PuTTY -->
+      <rect x="640" y="230" width="140" height="44" rx="6" fill="#F8F9FA" stroke="#CBD5E1" stroke-width="1.5"/>
+      <text x="710" y="251" text-anchor="middle" font-size="11" font-weight="600" fill="#1A1A2E">PuTTY</text>
+      <text x="710" y="266" text-anchor="middle" font-size="10" fill="#94A3B8">Ping! / Pong!</text>
+      <line x1="710" y1="207" x2="710" y2="228" stroke="#1A7A4A" stroke-width="1.5" marker-end="url(#arr)"/>
+
+      <text x="410" y="350" text-anchor="middle" font-size="10" fill="#94A3B8">Linux boots → DDR initialized → XSCT loads ELFs → cores run bare-metal</text>
+    </svg>
+  </div>
+
+  <div class="callout">
+    <strong>Why boot Linux first?</strong> Vitis 2025's FSBL — compiled with GCC 13 + LTO — produces
+    DWARF debug info that XSDB cannot parse. The <code>XFsbl_Exit</code> breakpoint always times out,
+    preventing ELF download. Booting PetaLinux instead initializes DDR, then XSCT loads bare-metal
+    ELFs directly onto individual cores — a clean workaround requiring zero FSBL involvement.
+  </div>
+</section>
+
+<!-- HOW IT WORKS -->
+<section class="section" id="subsystems">
+  <div class="section-label">Implementation Notes</div>
+  <h2>Key Concepts</h2>
+  <div class="subsystem-grid">
+    <div class="sub-card">
+      <div class="sub-icon">🔄</div>
+      <h3>Shared Memory Flag</h3>
+      <p>A single <code>volatile uint32_t</code> at <code>0x50000000</code> acts as the turn indicator.
+        Core 0 waits for <code>flag == 0</code>, writes Ping, sets <code>flag = 1</code>.
+        Core 1 waits for <code>flag == 1</code>, writes Pong, sets <code>flag = 0</code>.</p>
+      <div class="mono-detail">No mutex · No atomics · volatile is enough here</div>
+    </div>
+    <div class="sub-card">
+      <div class="sub-icon">📍</div>
+      <h3>Separate Load Addresses</h3>
+      <p>Each ELF is linked to a different DDR region via its linker script.
+        Core 0 starts at <code>0x10000000</code>, Core 1 at <code>0x20000000</code>.
+        Without this separation, both ELFs overwrite each other in memory.</p>
+      <div class="mono-detail">lscript.ld · ORIGIN changed per core</div>
+    </div>
+    <div class="sub-card">
+      <div class="sub-icon">🖥</div>
+      <h3>Bare UART Output</h3>
+      <p>No <code>printf</code>, no BSP, no stdlib. Each character is written
+        directly to the UART TX FIFO register after polling the status register
+        to confirm the FIFO is not full.</p>
+      <div class="mono-detail">0xFF00002C status · 0xFF000030 TX</div>
+    </div>
+    <div class="sub-card">
+      <div class="sub-icon">⏱</div>
+      <h3>Software Delay</h3>
+      <p>A <code>volatile</code> loop counter prevents the compiler from
+        optimizing away the delay. At 1.2 GHz, 300 million iterations give
+        roughly 1–2 seconds between messages.</p>
+      <div class="mono-detail">300_000_000 iterations ≈ ~1–2 s</div>
+    </div>
+    <div class="sub-card">
+      <div class="sub-icon">⚡</div>
+      <h3>XSCT Workflow</h3>
+      <p>A single TCL script connects to the hardware, resets and loads each
+        core independently, then releases both. One command replaces the entire
+        Vitis Run flow.</p>
+      <div class="mono-detail">xsct run.tcl · connect → dow → con</div>
+    </div>
+    <div class="sub-card">
+      <div class="sub-icon">🔧</div>
+      <h3>Vitis 2025 Migration</h3>
+      <p>Migrating from Vitis 2020 revealed that GCC 13 LTO corrupts DWARF sections,
+        making XSDB unable to find <code>XFsbl_Exit</code>. The Linux DDR-init
+        workaround fully sidesteps the issue.</p>
+      <div class="mono-detail">GCC 13 · -flto · DWARF5 incompatibility</div>
+    </div>
+  </div>
+</section>
+
+<!-- SOURCE CODE -->
+<section class="section" id="code">
+  <div class="section-label">Source Code</div>
+  <h2>All Files</h2>
+  <p>
+    Complete source for both cores, the linker scripts, and the XSCT automation script.
+    Click any tab to browse.
+  </p>
+
+  <div class="code-tabs-wrap">
+    <div class="tab-bar">
+      <button class="tab-btn active" onclick="switchTab('core0')" id="btn-core0">core0_ping.c</button>
+      <button class="tab-btn" onclick="switchTab('core1')" id="btn-core1">core1_pong.c</button>
+      <button class="tab-btn" onclick="switchTab('lscript0')" id="btn-lscript0">lscript_core0.ld</button>
+      <button class="tab-btn" onclick="switchTab('lscript1')" id="btn-lscript1">lscript_core1.ld</button>
+      <button class="tab-btn" onclick="switchTab('runtcl')" id="btn-runtcl">run.tcl</button>
+    </div>
+    <div class="code-wrap" style="margin-top:0; border-top:none; border-radius:0 0 8px 8px;">
+
+      <div class="tab-panel" id="panel-core0">
+        <div class="code-header"><div class="dots"><span></span><span></span><span></span></div><span class="filename">core0_ping.c — Cortex-A53 #0</span></div>
+        <pre><code class="language-c">void delay(void) {
+    volatile int i;
+    for(i = 0; i < 300000000; i++);
+}
+
+int main() {
+    volatile unsigned int *tx     = (volatile unsigned int*)0xFF000030;
+    volatile unsigned int *status = (volatile unsigned int*)0xFF00002C;
+    volatile unsigned int *flag   = (volatile unsigned int*)0x50000000;
+
+    char *ping = "Ping!\r\n";
+    char *p;
+
+    *flag = 0;  /* Core 0 goes first */
+
+    while(1) {
+        while(*flag != 0);  /* Wait for Core 1 to clear the flag */
+
+        p = ping;
+        while(*p) {
+            while(*status & 0x10);  /* Wait for TX FIFO space */
+            *tx = *p++;
+        }
+
+        delay();
+        *flag = 1;  /* Signal Core 1 */
+    }
+    return 0;
+}</code></pre>
+      </div>
+
+      <div class="tab-panel" id="panel-core1" style="display:none">
+        <div class="code-header"><div class="dots"><span></span><span></span><span></span></div><span class="filename">core1_pong.c — Cortex-A53 #1</span></div>
+        <pre><code class="language-c">void delay(void) {
+    volatile int i;
+    for(i = 0; i < 300000000; i++);
+}
+
+int main() {
+    volatile unsigned int *tx     = (volatile unsigned int*)0xFF000030;
+    volatile unsigned int *status = (volatile unsigned int*)0xFF00002C;
+    volatile unsigned int *flag   = (volatile unsigned int*)0x50000000;
+
+    char *pong = "Pong!\r\n";
+    char *p;
+
+    while(1) {
+        while(*flag != 1);  /* Wait for Core 0 to set the flag */
+
+        p = pong;
+        while(*p) {
+            while(*status & 0x10);  /* Wait for TX FIFO space */
+            *tx = *p++;
+        }
+
+        delay();
+        *flag = 0;  /* Signal Core 0 */
+    }
+    return 0;
+}</code></pre>
+      </div>
+
+      <div class="tab-panel" id="panel-lscript0" style="display:none">
+        <div class="code-header"><div class="dots"><span></span><span></span><span></span></div><span class="filename">lscript_core0.ld — Core 0 linker script (origin: 0x10000000)</span></div>
+        <pre><code class="language-c">/* Key change from default: ORIGIN = 0x10000000 */
+/* Core 1 uses 0x20000000 to avoid overlap       */
+
+MEMORY
+{
+    psu_ddr_0_memory_0     : ORIGIN = 0x10000000, LENGTH = 0x7ff00000
+    psu_qspi_linear_0      : ORIGIN = 0xc0000000, LENGTH = 0x20000000
+    psu_ocm_ram_0          : ORIGIN = 0xfffc0000, LENGTH = 0x40000
+}
+
+ENTRY(_vector_table)
+
+/* All sections mapped to psu_ddr_0_memory_0 */
+/* (full linker script in repo)              */</code></pre>
+      </div>
+
+      <div class="tab-panel" id="panel-lscript1" style="display:none">
+        <div class="code-header"><div class="dots"><span></span><span></span><span></span></div><span class="filename">lscript_core1.ld — Core 1 linker script (origin: 0x20000000)</span></div>
+        <pre><code class="language-c">/* Key change from default: ORIGIN = 0x20000000 */
+/* Core 0 uses 0x10000000 to avoid overlap       */
+
+MEMORY
+{
+    psu_ddr_0_memory_0     : ORIGIN = 0x20000000, LENGTH = 0x7ff00000
+    psu_qspi_linear_0      : ORIGIN = 0xc0000000, LENGTH = 0x20000000
+    psu_ocm_ram_0          : ORIGIN = 0xfffc0000, LENGTH = 0x40000
+}
+
+ENTRY(_vector_table)
+
+/* All sections mapped to psu_ddr_0_memory_0 */
+/* (full linker script in repo)              */</code></pre>
+      </div>
+
+      <div class="tab-panel" id="panel-runtcl" style="display:none">
+        <div class="code-header"><div class="dots"><span></span><span></span><span></span></div><span class="filename">run.tcl — XSCT automation script</span></div>
+        <pre><code class="language-tcl"># ZynqMP Dual-Core Ping-Pong — XSCT run script
+# Usage: xsct run.tcl
+# Prerequisite: PetaLinux must be fully booted before running.
+
+connect
+
+# Load Core 0
+targets -set -filter {name =~ "Cortex-A53 #0"}
+rst -processor -clear-registers
+dow /path/to/core0_ping/build/core0_ping.elf
+
+# Load Core 1
+targets -set -filter {name =~ "Cortex-A53 #1"}
+rst -processor -clear-registers
+dow /path/to/core1_pong/build/core1_pong.elf
+
+# Release both cores
+targets -set -filter {name =~ "Cortex-A53 #0"}
+con
+targets -set -filter {name =~ "Cortex-A53 #1"}
+con</code></pre>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<footer>
+  <p>Baran Tuna Uçar &nbsp;·&nbsp; Bilkent University EEE &nbsp;·&nbsp;
+    <a href="https://github.com/btunaucar" target="_blank">github.com/btunaucar</a>
+  </p>
+  <p style="margin-top:6px; font-size:11px; color:#94A3B8">
+    Bare-Metal C · Zynq UltraScale+ · Vitis 2025 · ALINX AXU2CGB · InfoDif Internship 2026
+  </p>
+</footer>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => { hljs.highlightAll(); });
+function switchTab(id) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.style.display = 'none');
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('panel-' + id).style.display = 'block';
+  document.getElementById('btn-' + id).classList.add('active');
+}
+</script>
+
+</body>
+</html>
